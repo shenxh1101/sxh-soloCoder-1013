@@ -1,0 +1,26 @@
+{
+  "name": "pixel-sports-club",
+  "version": "1.0.0",
+  "description": "A retro pixel-art sports club management game",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.pixelsports.club",
+    "win": {
+      "target": "nsis"
+    },
+    "files": [
+      "main.js",
+      "index.html",
+      "src/**/*",
+      "assets/**/*"
+    ]
+  }
+}
