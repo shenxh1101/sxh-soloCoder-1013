@@ -103,6 +103,9 @@ class Season {
     if (!this.cupFixtures || this.cupFixtures.length === 0) return null;
     if (this.cupWinner) return null;
     
+    const playerStatus = this.cupTeamStatus[this.playerTeamId];
+    if (playerStatus === 'eliminated') return null;
+    
     const currentCupRoundIdx = this.cupCurrentRound - 1;
     if (currentCupRoundIdx >= this.cupFixtures.length) return null;
     
@@ -115,11 +118,6 @@ class Season {
     
     if (playerMatch) {
       return playerMatch;
-    }
-    
-    const unplayedMatch = roundMatches.find(m => !m.played);
-    if (unplayedMatch) {
-      return unplayedMatch;
     }
     
     return null;
@@ -333,6 +331,60 @@ class Season {
     });
     
     this.checkAndGenerateNextCupRound();
+    
+    if (this.cupTeamStatus[this.playerTeamId] === 'eliminated') {
+      this.autoSimulateRemainingCup();
+    }
+  }
+
+  autoSimulateRemainingCup() {
+    if (this.cupWinner) return;
+    
+    let safetyCounter = 0;
+    while (!this.cupWinner && safetyCounter < 10) {
+      safetyCounter++;
+      const currentCupRoundIdx = this.cupCurrentRound - 1;
+      if (currentCupRoundIdx >= this.cupFixtures.length) break;
+      
+      const cupRound = this.cupFixtures[currentCupRoundIdx];
+      if (!cupRound) break;
+      
+      let hasUnplayed = false;
+      cupRound.forEach(matchData => {
+        if (!matchData.played) {
+          hasUnplayed = true;
+          const match = new Match(matchData);
+          const homeLineup = this.generateAILineup(match.homeTeam);
+          const awayLineup = this.generateAILineup(match.awayTeam);
+          const homeTactics = this.generateAITactics(match.homeTeam);
+          const awayTactics = this.generateAITactics(match.awayTeam);
+          
+          match.setupMatch(homeLineup, awayLineup, homeTactics, awayTactics);
+          match.simulateFullMatch();
+          
+          matchData.played = true;
+          matchData.homeScore = match.homeScore;
+          matchData.awayScore = match.awayScore;
+          matchData.winner = match.winner;
+          matchData.homeTeam = match.homeTeam;
+          matchData.awayTeam = match.awayTeam;
+          
+          if (match.winner) {
+            const loserId = match.winner === match.home ? match.away : match.home;
+            this.cupTeamStatus[loserId] = 'eliminated';
+          }
+          
+          let cleanSheetCount = 0;
+          if (match.homeScore === 0) cleanSheetCount++;
+          if (match.awayScore === 0) cleanSheetCount++;
+          this.stats.cleanSheets += cleanSheetCount;
+        }
+      });
+      
+      if (!hasUnplayed) {
+        this.checkAndGenerateNextCupRound();
+      }
+    }
   }
 
   checkAndGenerateNextCupRound() {
