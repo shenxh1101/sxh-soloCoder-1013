@@ -153,6 +153,10 @@ class TransferMarket extends Scene {
         if (index > -1) {
           this.transferList.splice(index, 1);
         }
+        const seasonIndex = this.game.season.transferList.findIndex(pl => pl.id === p.id);
+        if (seasonIndex > -1) {
+          this.game.season.transferList.splice(seasonIndex, 1);
+        }
         this.showNotification(`成功签下 ${p.name}！`, 'success');
         this.selectedMarketPlayer = null;
         this.game.saveGame();
@@ -165,9 +169,9 @@ class TransferMarket extends Scene {
   }
 
   refreshMarket() {
-    if (!this.game.season) {
+    if (this.game.season) {
       this.game.season.refreshTransferList();
-      this.transferList = this.game.season.transferList;
+      this.transferList = [...this.game.season.transferList];
       this.showNotification('转会市场已刷新', 'success');
       this.game.saveGame();
       this.buildUI();

@@ -70,6 +70,11 @@ class Season {
   }
 
   getNextMatch() {
+    const cupMatch = this.getNextCupMatch();
+    if (cupMatch) {
+      return cupMatch;
+    }
+    
     if (this.currentRound >= this.totalRounds) return null;
     
     const roundFixtures = this.fixtures[this.currentRound];
@@ -86,15 +91,57 @@ class Season {
     return null;
   }
 
+  getNextCupMatch() {
+    if (!this.cupFixtures || this.cupFixtures.length === 0) return null;
+    
+    for (let round = 0; round < this.cupFixtures.length; round++) {
+      const roundMatches = this.cupFixtures[round];
+      const playerMatch = roundMatches.find(
+        m => !m.played && (m.home === this.playerTeamId || m.away === this.playerTeamId)
+      );
+      if (playerMatch) {
+        return playerMatch;
+      }
+    }
+    
+    return null;
+  }
+
+  isCurrentMatchCup() {
+    const nextMatch = this.getNextMatch();
+    return nextMatch && nextMatch.isCup === true;
+  }
+
+  getCupRound() {
+    const nextMatch = this.getNextCupMatch();
+    if (!nextMatch) return null;
+    return nextMatch.round;
+  }
+
   getRoundMatches(round) {
     return this.fixtures[round] || [];
   }
 
   playMatch(matchId, homeLineup = null, awayLineup = null, homeTactics = null) {
-    const roundMatches = this.fixtures[this.currentRound];
-    if (!roundMatches) return null;
+    let matchData = null;
+    let isCup = false;
     
-    const matchData = roundMatches.find(m => m.id === matchId);
+    const roundMatches = this.fixtures[this.currentRound];
+    if (roundMatches) {
+      matchData = roundMatches.find(m => m.id === matchId);
+    }
+    
+    if (!matchData) {
+      for (let r = 0; r < this.cupFixtures.length; r++) {
+        const cupRound = this.cupFixtures[r];
+        matchData = cupRound.find(m => m.id === matchId);
+        if (matchData) {
+          isCup = true;
+          break;
+        }
+      }
+    }
+    
     if (!matchData || matchData.played) return null;
     
     const match = new Match(matchData);
@@ -119,9 +166,10 @@ class Season {
     this.stats.totalMatches++;
     this.stats.totalGoals += match.homeScore + match.awayScore;
     
-    if (match.homeScore === 0 || match.awayScore === 0) {
-      this.stats.cleanSheets++;
-    }
+    let cleanSheetCount = 0;
+    if (match.homeScore === 0) cleanSheetCount++;
+    if (match.awayScore === 0) cleanSheetCount++;
+    this.stats.cleanSheets += cleanSheetCount;
     
     const homeStrength = TeamData.calculateTeamStrength(match.homeTeam);
     const awayStrength = TeamData.calculateTeamStrength(match.awayTeam);
@@ -148,40 +196,98 @@ class Season {
     matchData.homeTeam = match.homeTeam;
     matchData.awayTeam = match.awayTeam;
     
-    this.updateLeagueTable();
+    if (isCup && matchData.nextRound && match.winner) {
+      const winnerTeam = match.winner === match.home ? match.homeTeam : match.awayTeam;
+      if (matchData.nextRound.indexOf(winnerTeam) === -1) {
+        matchData.nextRound.push(winnerTeam);
+      }
+      
+      this.checkCupWinner();
+    }
     
-    return { match, result };
+    if (!isCup) {
+      this.updateLeagueTable();
+    }
+    
+    return { match, result, isCup };
   }
 
   simulateRestOfRound(playerMatchId) {
     const roundMatches = this.fixtures[this.currentRound];
-    if (!roundMatches) return [];
+    if (roundMatches) {
+      roundMatches.forEach(matchData => {
+        if (matchData.id !== playerMatchId && !matchData.played) {
+          const match = new Match(matchData);
+          const homeLineup = this.generateAILineup(match.homeTeam);
+          const awayLineup = this.generateAILineup(match.awayTeam);
+          const homeTactics = this.generateAITactics(match.homeTeam);
+          const awayTactics = this.generateAITactics(match.awayTeam);
+          
+          match.setupMatch(homeLineup, awayLineup, homeTactics, awayTactics);
+          match.simulateFullMatch();
+          
+          matchData.played = true;
+          matchData.homeScore = match.homeScore;
+          matchData.awayScore = match.awayScore;
+          matchData.winner = match.winner;
+          matchData.homeTeam = match.homeTeam;
+          matchData.awayTeam = match.awayTeam;
+        }
+      });
+      
+      this.updateLeagueTable();
+    }
     
-    const results = [];
-    roundMatches.forEach(matchData => {
-      if (matchData.id !== playerMatchId && !matchData.played) {
-        const match = new Match(matchData);
-        const homeLineup = this.generateAILineup(match.homeTeam);
-        const awayLineup = this.generateAILineup(match.awayTeam);
-        const homeTactics = this.generateAITactics(match.homeTeam);
-        const awayTactics = this.generateAITactics(match.awayTeam);
-        
-        match.setupMatch(homeLineup, awayLineup, homeTactics, awayTactics);
-        const result = match.simulateFullMatch();
-        
-        matchData.played = true;
-        matchData.homeScore = match.homeScore;
-        matchData.awayScore = match.awayScore;
-        matchData.winner = match.winner;
-        matchData.homeTeam = match.homeTeam;
-        matchData.awayTeam = match.awayTeam;
-        
-        results.push(result);
+    this.simulateRestOfCup(playerMatchId);
+    
+    return [];
+  }
+
+  simulateRestOfCup(playerMatchId) {
+    if (!this.cupFixtures) return;
+    
+    for (let r = 0; r < this.cupFixtures.length; r++) {
+      const cupRound = this.cupFixtures[r];
+      cupRound.forEach(matchData => {
+        if (matchData.id !== playerMatchId && !matchData.played) {
+          const match = new Match(matchData);
+          const homeLineup = this.generateAILineup(match.homeTeam);
+          const awayLineup = this.generateAILineup(match.awayTeam);
+          const homeTactics = this.generateAITactics(match.homeTeam);
+          const awayTactics = this.generateAITactics(match.awayTeam);
+          
+          match.setupMatch(homeLineup, awayLineup, homeTactics, awayTactics);
+          match.simulateFullMatch();
+          
+          matchData.played = true;
+          matchData.homeScore = match.homeScore;
+          matchData.awayScore = match.awayScore;
+          matchData.winner = match.winner;
+          matchData.homeTeam = match.homeTeam;
+          matchData.awayTeam = match.awayTeam;
+          
+          if (matchData.nextRound && match.winner) {
+            const winnerTeam = match.winner === match.home ? match.homeTeam : match.awayTeam;
+            matchData.nextRound.push(winnerTeam);
+          }
+        }
+      });
+    }
+    
+    this.checkCupWinner();
+  }
+
+  checkCupWinner() {
+    if (!this.cupFixtures || this.cupFixtures.length === 0) return;
+    
+    const lastRound = this.cupFixtures[this.cupFixtures.length - 1];
+    if (lastRound && lastRound.length === 1 && lastRound[0].played) {
+      const finalMatch = lastRound[0];
+      if (finalMatch.winner) {
+        const winnerTeam = finalMatch.winner === finalMatch.home ? finalMatch.homeTeam : finalMatch.awayTeam;
+        this.cupWinner = winnerTeam.id;
       }
-    });
-    
-    this.updateLeagueTable();
-    return results;
+    }
   }
 
   advanceWeek() {

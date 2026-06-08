@@ -80,10 +80,6 @@ class Match {
       }
     }
     
-    if (this.matchTime === 90) {
-      this.finalize();
-    }
-    
     return event;
   }
 
@@ -302,11 +298,11 @@ class Match {
     this.homeLineup.forEach(p => p.playMatch());
     this.awayLineup.forEach(p => p.playMatch());
     
-    if (this.homeScore === 0 && this.awayScore !== 0) {
+    if (this.homeScore === 0) {
       const awayGK = this.awayLineup.find(p => p.positionShort === 'GK');
       if (awayGK) awayGK.keepCleanSheet();
     }
-    if (this.awayScore === 0 && this.homeScore !== 0) {
+    if (this.awayScore === 0) {
       const homeGK = this.homeLineup.find(p => p.positionShort === 'GK');
       if (homeGK) homeGK.keepCleanSheet();
     }

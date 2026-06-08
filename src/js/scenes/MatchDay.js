@@ -221,47 +221,78 @@ class MatchDay extends Scene {
     const result = this.liveMatch.finalize();
     
     const nextMatch = this.game.season.getNextMatch();
+    const isCup = nextMatch && nextMatch.isCup === true;
+    
     nextMatch.played = true;
     nextMatch.homeScore = this.liveMatch.homeScore;
     nextMatch.awayScore = this.liveMatch.awayScore;
     nextMatch.winner = this.liveMatch.winner;
     
-    this.game.season.updateLeagueTable();
+    if (isCup && nextMatch.nextRound && this.liveMatch.winner) {
+      const winnerTeam = this.liveMatch.winner === this.liveMatch.home ? this.liveMatch.homeTeam : this.liveMatch.awayTeam;
+      nextMatch.nextRound.push(winnerTeam);
+      this.game.season.checkCupWinner();
+    }
+    
+    if (!isCup) {
+      this.game.season.updateLeagueTable();
+    }
+    
     this.game.saveGame();
     
     this.buildUI();
   }
 
   continueAfterMatch() {
-    const otherResults = this.game.season.simulateRestOfRound(this.currentMatch.id);
+    const isCupMatch = this.currentMatch && this.currentMatch.isCup === true;
     
-    const advanceResult = this.game.season.advanceRound();
+    this.game.season.simulateRestOfRound(this.currentMatch.id);
     
-    if (this.game.season.currentRound >= this.game.season.totalRounds) {
-      const endResult = this.game.season.endSeason();
+    if (!isCupMatch) {
+      const advanceResult = this.game.season.advanceRound();
       
-      let message = `赛季结束！\n排名: 第${endResult.seasonResult.finalPosition}名\n积分: ${endResult.seasonResult.points}分\n奖金: ${this.formatCurrency(endResult.rewards.total)}元`;
-      
-      if (endResult.trophies.length > 0) {
-        const trophyNames = endResult.trophies.map(t => t.name).join(', ');
-        message += `\n\n解锁奖杯: ${trophyNames}`;
-      }
-      
-      alert(message);
-      
-      if (confirm('是否开始新赛季？')) {
-        const newSeason = this.game.season.getNextSeason(this.getPlayerTeam());
-        this.game.season = newSeason;
-        this.game.saveGame();
-        this.game.goToScene('mainMenu');
+      if (this.game.season.currentRound >= this.game.season.totalRounds) {
+        const endResult = this.game.season.endSeason();
+        
+        let message = `赛季结束！\n排名: 第${endResult.seasonResult.finalPosition}名\n积分: ${endResult.seasonResult.points}分\n奖金: ${this.formatCurrency(endResult.rewards.total)}元`;
+        
+        if (endResult.trophies.length > 0) {
+          const trophyNames = endResult.trophies.map(t => t.name).join(', ');
+          message += `\n\n解锁奖杯: ${trophyNames}`;
+        }
+        
+        alert(message);
+        
+        if (confirm('是否开始新赛季？')) {
+          const newSeason = this.game.season.getNextSeason(this.getPlayerTeam());
+          this.game.season = newSeason;
+          this.game.saveGame();
+          this.game.goToScene('mainMenu');
+        } else {
+          this.game.goToScene('mainMenu');
+        }
       } else {
-        this.game.goToScene('mainMenu');
+        this.showNotification(`第${advanceResult.nextRound}轮开始！`, 'info');
+        this.game.season.advanceWeek();
+        this.game.saveGame();
+        this.init();
       }
     } else {
-      this.showNotification(`第${advanceResult.nextRound}轮开始！`, 'info');
-      this.game.season.advanceWeek();
-      this.game.saveGame();
-      this.init();
+      const hasMoreCupMatches = this.game.season.getNextCupMatch() !== null;
+      const hasMoreLeagueMatches = this.game.season.getNextMatch() !== null;
+      
+      if (hasMoreCupMatches || hasMoreLeagueMatches) {
+        const cupRound = this.game.season.getCupRound();
+        const roundText = cupRound ? `杯赛第${cupRound}轮` : '下一场比赛';
+        this.showNotification(`${roundText}即将开始！`, 'info');
+        this.game.season.advanceWeek();
+        this.game.saveGame();
+        this.init();
+      } else {
+        this.game.season.advanceWeek();
+        this.game.saveGame();
+        this.game.goToScene('mainMenu');
+      }
     }
   }
 
@@ -281,13 +312,22 @@ class MatchDay extends Scene {
     this.renderer.drawRect(0, 0, this.renderer.width, 170, '#2a2a4a');
     this.renderer.drawBorder(0, 0, this.renderer.width, 170, this.renderer.palette.border, 3);
     
-    this.renderer.drawTextCentered('比赛日 - 赛前准备', 0, 15, this.renderer.width, this.renderer.palette.gold, 18);
+    const isCup = this.currentMatch && this.currentMatch.isCup === true;
+    const titleText = isCup ? `比赛日 - ${this.currentMatch.cupName || '杯赛'}` : '比赛日 - 赛前准备';
+    this.renderer.drawTextCentered(titleText, 0, 15, this.renderer.width, this.renderer.palette.gold, 18);
     
     if (this.currentMatch) {
       const isHome = this.currentMatch.home === this.game.season.getPlayerTeam().id;
       const homeTeam = this.currentMatch.homeTeam;
       const awayTeam = this.currentMatch.awayTeam;
       const playerTeam = this.game.season.getPlayerTeam();
+      
+      if (isCup) {
+        const cupRound = this.game.season.getCupRound();
+        if (cupRound) {
+          this.renderer.drawTextCentered(`第${cupRound}轮`, 0, 40, this.renderer.width, this.renderer.palette.cyan, 10);
+        }
+      }
       
       this.renderer.drawText(homeTeam.name, 100, 60, this.renderer.palette.text, 14);
       this.renderer.drawText(`VS`, 450, 60, this.renderer.palette.gold, 20);
