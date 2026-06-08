@@ -157,12 +157,23 @@ const TrophyData = {
     {
       id: 'clean_sheet_record',
       name: '钢铁防线',
-      description: '单赛季零封场次达到10场',
+      description: '单赛季零封场次达到5场',
       type: 'achievement',
       rarity: 'rare',
       unlocked: false,
       condition: (seasonResult) => {
-        return seasonResult.cleanSheets >= 10;
+        return seasonResult.cleanSheets >= 5;
+      }
+    },
+    {
+      id: 'consecutive_clean_sheets',
+      name: '固若金汤',
+      description: '单赛季连续零封达到3场',
+      type: 'achievement',
+      rarity: 'rare',
+      unlocked: false,
+      condition: (seasonResult) => {
+        return seasonResult.maxConsecutiveCleanSheets >= 3;
       }
     },
     {

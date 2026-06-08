@@ -56,43 +56,62 @@ const LeagueData = {
     return fixtures;
   },
 
-  generateCupFixtures(teams) {
+  generateCupFixtures(teams, roundNum = 1, cupName = null) {
     const shuffled = [...teams].sort(() => Math.random() - 0.5);
-    const fixtures = [];
-    let roundTeams = shuffled;
-    let roundNum = 1;
+    const roundMatches = [];
+    const cupNameToUse = cupName || this.cupNames[0];
     
-    while (roundTeams.length > 1) {
-      const roundMatches = [];
-      const nextRound = [];
-      
-      for (let i = 0; i < roundTeams.length; i += 2) {
-        if (i + 1 < roundTeams.length) {
-          roundMatches.push({
-            id: `cup_${roundNum}_${i}`,
-            round: roundNum,
-            home: roundTeams[i].id,
-            away: roundTeams[i + 1].id,
-            homeTeam: roundTeams[i],
-            awayTeam: roundTeams[i + 1],
-            played: false,
-            homeScore: 0,
-            awayScore: 0,
-            date: 10 + roundNum * 4,
-            isCup: true,
-            cupName: this.cupNames[0],
-            winner: null,
-            nextRound: nextRound
-          });
-        }
+    for (let i = 0; i < shuffled.length; i += 2) {
+      if (i + 1 < shuffled.length) {
+        roundMatches.push({
+          id: `cup_${roundNum}_${i}`,
+          round: roundNum,
+          home: shuffled[i].id,
+          away: shuffled[i + 1].id,
+          homeTeam: shuffled[i],
+          awayTeam: shuffled[i + 1],
+          played: false,
+          homeScore: 0,
+          awayScore: 0,
+          date: 10 + roundNum * 4,
+          isCup: true,
+          cupName: cupNameToUse,
+          winner: null
+        });
       }
-      
-      fixtures.push(roundMatches);
-      roundTeams = nextRound;
-      roundNum++;
     }
     
-    return fixtures;
+    return roundMatches;
+  },
+  
+  generateNextCupRound(winningTeams, roundNum, cupName = null) {
+    if (winningTeams.length <= 1) return null;
+    
+    const cupNameToUse = cupName || this.cupNames[0];
+    const shuffled = [...winningTeams].sort(() => Math.random() - 0.5);
+    const roundMatches = [];
+    
+    for (let i = 0; i < shuffled.length; i += 2) {
+      if (i + 1 < shuffled.length) {
+        roundMatches.push({
+          id: `cup_${roundNum}_${i}`,
+          round: roundNum,
+          home: shuffled[i].id,
+          away: shuffled[i + 1].id,
+          homeTeam: shuffled[i],
+          awayTeam: shuffled[i + 1],
+          played: false,
+          homeScore: 0,
+          awayScore: 0,
+          date: 10 + roundNum * 4,
+          isCup: true,
+          cupName: cupNameToUse,
+          winner: null
+        });
+      }
+    }
+    
+    return roundMatches;
   },
 
   updateLeagueTable(teams, fixtures) {

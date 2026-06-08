@@ -228,10 +228,10 @@ class MatchDay extends Scene {
     nextMatch.awayScore = this.liveMatch.awayScore;
     nextMatch.winner = this.liveMatch.winner;
     
-    if (isCup && nextMatch.nextRound && this.liveMatch.winner) {
-      const winnerTeam = this.liveMatch.winner === this.liveMatch.home ? this.liveMatch.homeTeam : this.liveMatch.awayTeam;
-      nextMatch.nextRound.push(winnerTeam);
-      this.game.season.checkCupWinner();
+    if (isCup && this.liveMatch.winner) {
+      const loserId = this.liveMatch.winner === this.liveMatch.home ? this.liveMatch.away : this.liveMatch.home;
+      this.game.season.cupTeamStatus[loserId] = 'eliminated';
+      this.game.season.checkAndGenerateNextCupRound();
     }
     
     if (!isCup) {
